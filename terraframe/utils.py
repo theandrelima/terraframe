@@ -88,7 +88,9 @@ def create_variables_dot_tf_file_for_root_module_based_on_child_module(
 
 
 def generate_str_for_root_module_input_vars(
-    root_module_path: Path, root_module_vars_prefix: str, variables_file: Optional[str] = "variables.tf"
+    root_module_path: Path,
+    root_module_vars_prefix: str,
+    variables_file: Optional[str] = "variables.tf",
 ) -> str:
     """Generates a string that can be copied and pasted into a module's call.
 
@@ -170,19 +172,18 @@ def yaml_to_dict(yaml_file_path: Path) -> dict:
     print(yaml_file_path)
     with open(yaml_file_path, "r") as f:
         dictionary = yaml.load(f, Loader=yaml.FullLoader)
-    
+
     return dictionary
 
 
 def exapand_terraframe_templates(loaded_dict: dict) -> None:
-    """Takes a parsed YAML file as a dict and expands 'deployment_templates' into 'deployments'. """
-
+    """Takes a parsed YAML file as a dict and expands 'deployment_templates' into 'deployments'."""
 
     def _get_template(deployment_dict: dict) -> bool:
         return deployment_dict.pop("deployment_template", None)
-    
+
     templates = loaded_dict["deployment_templates"]
-    
+
     if templates:
         for deployment in loaded_dict["deployments"]:
             template_name = _get_template(deployment)
@@ -227,7 +228,9 @@ def get_yaml_key_name_to_models_mapping():
     return model_classes
 
 
-def create_all_models_from_yaml(yaml_dict: dict, key_to_model_mapping: Dict[str, Type["TerraFrameBaseModel"]]) -> None:
+def create_all_models_from_yaml(
+    yaml_dict: dict, key_to_model_mapping: Dict[str, Type["TerraFrameBaseModel"]]
+) -> None:
     for yaml_key in yaml_dict:
         model_cls = key_to_model_mapping.get(yaml_key)
         if model_cls:
