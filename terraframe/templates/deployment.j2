@@ -1,0 +1,25 @@
+{% for remote_state in remote_states -%}
+data "terraform_remote_state" "{{ remote_state.name }}" {
+  backend = "{{ remote_state.backend }}"
+
+  config = {
+    {% for key, value in remote_state.config.items() -%}
+    {{ key }} = "{{ value }}"
+    {%- endfor %}
+  }
+}
+
+{%endfor %}
+{% for child_module in child_modules -%}
+module "{{prefix}}{{ child_module.name }}" {
+  source = "{{ child_module.source }}"
+{% for input in child_module.child_module_vars -%}
+{% if input.name not in remote_state_inputs_dict %}
+  {{ input.name }} = var.{{ prefix }}{{ input.name }} 
+{%- endif %}
+{%- endfor %}
+{% for key, value in remote_state_inputs_dict.items() %}
+  {{ key }} = data.terraform_remote_state.{{ value[0] }}.outputs.{{ value[1] }}
+{%- endfor %}
+}
+{% endfor %}
