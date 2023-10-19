@@ -13,10 +13,6 @@ from models import *
 
 
 if __name__ == "__main__":
-    # import sys
-    # print(sys.path)
-    #
-    # raise Exception
     t = Terraframe()
     # this is very much 'hard-coded' at the moment.
     project_path = Path("tests/projects/my_project")
