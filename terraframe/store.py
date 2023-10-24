@@ -7,17 +7,7 @@ if TYPE_CHECKING:
     from models import TerraFrameBaseModel
 
 
-class SingletonMeta(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            instance = super().__call__(*args, **kwargs)
-            cls._instances[cls] = instance
-        return cls._instances[cls]
-
-
-class TFModelsGlobalStore(metaclass=SingletonMeta):
+class TFModelsGlobalStore:
     _records = defaultdict(TerraframeSortedSet)
 
     @property
@@ -74,3 +64,14 @@ class TFModelsGlobalStore(metaclass=SingletonMeta):
 
     def get_all(self, obj_class: Type["TerraFrameBaseModel"]) -> TerraframeSortedSet:
         return self._search(obj_class)
+
+
+SHARED_DATA_STORE = None
+
+def get_shared_data_store():
+    global SHARED_DATA_STORE
+
+    if SHARED_DATA_STORE is None:
+        SHARED_DATA_STORE = TFModelsGlobalStore()
+
+    return SHARED_DATA_STORE

@@ -7,5 +7,7 @@ class HashableDict(dict):
 
 
 class TerraframeSortedSet(SortedSet):
+    """This class implements a custom SortedSet.
+    The only difference is that for Terraform's case"""
     def __init__(self, *args, **kwargs):
         super().__init__(key=lambda model_obj: model_obj.key, *args, **kwargs)

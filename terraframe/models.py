@@ -9,7 +9,7 @@ from jinja2.exceptions import TemplateNotFound
 
 from terraframe.custom_collections import TerraframeSortedSet
 from utils import get_all_variables_from_module, convert_nested_dict_to_hashabledict
-from store import TFModelsGlobalStore
+from store import TFModelsGlobalStore, get_shared_data_store
 from custom_collections import HashableDict
 from sortedcontainers import SortedSet
 
@@ -23,7 +23,7 @@ class TerraFrameBaseModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     _yaml_directive: str = None
-    _data_store: TFModelsGlobalStore = TFModelsGlobalStore()
+    _data_store: TFModelsGlobalStore = get_shared_data_store()
     _key: Tuple = tuple(
         ["name"]
     )  # even though this class doesn't have a 'name' attr, most (if not all) child classes will.
