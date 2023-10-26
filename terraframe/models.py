@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Any, Tuple, Union
 
 import re
+from pathlib import Path
 from functools import total_ordering
 
 from pydantic import BaseModel, ConfigDict
@@ -214,7 +215,7 @@ class ChildModuleModel(RenderableModel):
         _child_module_vars = tuple(
             [
                 ChildModuleVarModel.create(dict_args={"name": var})
-                for var in get_all_variables_from_module(dict_args["source"])
+                for var in get_all_variables_from_module(Path(dict_args["source"]).absolute())
             ]
         )
 

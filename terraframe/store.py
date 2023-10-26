@@ -1,5 +1,6 @@
 from typing import Any, Optional, Dict, Type, TYPE_CHECKING
 
+from functools import cache
 from collections import defaultdict
 from custom_collections import TerraframeSortedSet
 
@@ -11,7 +12,7 @@ class TFModelsGlobalStore:
     _records = defaultdict(TerraframeSortedSet)
 
     @property
-    def records(self):
+    def records(self) -> defaultdict[TerraframeSortedSet]:
         return self._records
 
     @records.setter
@@ -68,6 +69,7 @@ class TFModelsGlobalStore:
 
 SHARED_DATA_STORE = None
 
+@cache
 def get_shared_data_store():
     global SHARED_DATA_STORE
 

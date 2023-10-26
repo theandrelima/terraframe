@@ -6,7 +6,7 @@ import inspect
 from pathlib import Path
 
 from store import TFModelsGlobalStore, get_shared_data_store
-from terraframe.models import TerraFrameBaseModel, DeploymentModel
+from terraframe.models import TerraFrameBaseModel, DeploymentModel, RemoteStateModel
 from terraframe.utils import yaml_to_dict, exapand_terraframe_templates, create_all_models_from_yaml, get_yaml_key_name_to_models_mapping
 from terraframe.constants import DEPLOYMENT_TEMPLATES_KEY
 
@@ -17,10 +17,13 @@ class Terraframe:
     It includes necessary methods to create TerraframeModel objects from a terraframe.yaml file.
     """
     def __init__(self, project_path_str: str, terraframe_yaml_file_name: str = "terraframe.yaml"):
+        print("???")
         self.ds = get_shared_data_store().records
         self.project_path = Path(project_path_str)
         self.terraframe_file = self.project_path / terraframe_yaml_file_name
         self.loaded_dict = self.get_loaded_dict()
+        self.keys_to_models_mapping = self.get_yaml_key_name_to_models_mapping()
+        self.create_all_models_from_yaml(self.loaded_dict, self.keys_to_models_mapping)
 
     @staticmethod
     def _expand_deployment_templates(loaded_dict: Dict[str, Any]) -> None:
@@ -59,7 +62,7 @@ class Terraframe:
         model_classes = {}
         # how do I register modules?
         # for module in registered_model_modules:
-        for _, obj in inspect.getmembers(sys.modules["models"]):
+        for _, obj in inspect.getmembers(sys.modules["terraframe.models"]):
             try:
                 m_name = getattr(obj, "_yaml_directive").get_default()
                 if inspect.isclass(obj) and m_name:
@@ -123,7 +126,8 @@ class Terraframe:
 
             self._create_maintf_file(deployment, deployment_path)
             self._create_variables_file(deployment, deployment_path)
-            self._create_empty_yml_vars_file(f"{deployment.name}_deployment_vars.yaml")
+        else:
+            self._create_empty_yml_vars_file(f"{self.project_path.name}_deployment_vars.yaml")
 
     @staticmethod
     def _create_maintf_file(deployment: DeploymentModel, deployment_path: Path, main_file_name: Optional[str] = "main.tf") -> None:
