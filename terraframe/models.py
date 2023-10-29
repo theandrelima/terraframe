@@ -215,7 +215,9 @@ class ChildModuleModel(RenderableModel):
         _child_module_vars = tuple(
             [
                 ChildModuleVarModel.create(dict_args={"name": var})
-                for var in get_all_variables_from_module(Path(dict_args["source"]).absolute())
+                for var in get_all_variables_from_module(
+                    Path(dict_args["source"]).absolute()
+                )
             ]
         )
 

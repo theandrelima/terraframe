@@ -69,6 +69,7 @@ class TFModelsGlobalStore:
 
 SHARED_DATA_STORE = None
 
+
 @cache
 def get_shared_data_store():
     global SHARED_DATA_STORE

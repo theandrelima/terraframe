@@ -7,18 +7,18 @@ from pathlib import Path
 from custom_collections import HashableDict
 
 
-
-
-def get_all_matching_files_for_path(path: Path, file_patterns: Iterable[str]) -> Set[Path]:
+def get_all_matching_files_for_path(
+    path: Path, file_patterns: Iterable[str]
+) -> Set[Path]:
     """Recursivelly search and return all files under 'path' folder that match a pattern in 'file_patterns'.
 
-        Args:
-            path: the root path to start the search from
-            file_patterns: file name patterns to match against
+    Args:
+        path: the root path to start the search from
+        file_patterns: file name patterns to match against
 
-        Returns:
-            A set object containing all files found.
-        """
+    Returns:
+        A set object containing all files found.
+    """
     files_to_return = set()
 
     for pattern in file_patterns:
@@ -97,6 +97,7 @@ def get_yaml_key_name_to_models_mapping():
             continue
 
     return model_classes
+
 
 def create_all_models_from_yaml(
     yaml_dict: dict, key_to_model_mapping: Dict[str, Type["TerraFrameBaseModel"]]
