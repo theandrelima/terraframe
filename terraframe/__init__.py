@@ -11,7 +11,7 @@ from terraframe.utils import (
     create_all_models_from_yaml,
     get_yaml_key_name_to_models_mapping,
     get_all_matching_files_for_path,
-    get_all_variables_from_module
+    get_all_variables_from_module,
 )
 from terraframe.constants import DEPLOYMENT_TEMPLATES_KEY
 
@@ -131,7 +131,9 @@ class Terraframe:
 
         return deployment_vars
 
-    def create_empty_yml_vars_file(self, all_vars: Dict[str, List[str]], file_name: str) -> None:
+    def create_empty_yml_vars_file(
+        self, all_vars: Dict[str, List[str]], file_name: str
+    ) -> None:
         """
         Creates a YAML file with 'file_name' under 'project_path' directory.
         This file will contain all variables read from files with a name in 'variables_file_name'
@@ -170,4 +172,7 @@ class Terraframe:
             self.create_variables_file(deployment, deployment_path)
             all_vars[deployment.name] = self.get_vars_for_deployment(deployment)
         else:
-            self.create_empty_yml_vars_file(all_vars=all_vars, file_name=f"{self.project_path.name}_deployment_vars.yaml")
+            self.create_empty_yml_vars_file(
+                all_vars=all_vars,
+                file_name=f"{self.project_path.name}_deployment_vars.yaml",
+            )
