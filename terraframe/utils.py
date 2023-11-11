@@ -1,4 +1,4 @@
-from typing import List, Set, Dict, Type, Iterable, Optional
+from typing import List, Set, Dict, Type, Iterable, Tuple, Any
 
 import yaml
 import sys
@@ -8,7 +8,7 @@ from terraframe.custom_collections import HashableDict
 
 
 def get_all_matching_files_for_path(
-    path: Path, file_patterns: Iterable[str]
+        path: Path, file_patterns: Iterable[str]
 ) -> Set[Path]:
     """Recursivelly search and return all files under 'path' folder that match a pattern in 'file_patterns'.
 
@@ -100,7 +100,7 @@ def get_yaml_key_name_to_models_mapping():
 
 
 def create_all_models_from_yaml(
-    yaml_dict: dict, key_to_model_mapping: Dict[str, Type["TerraFrameBaseModel"]]
+        yaml_dict: dict, key_to_model_mapping: Dict[str, Type["TerraFrameBaseModel"]]
 ) -> None:
     for yaml_key in yaml_dict:
         model_cls = key_to_model_mapping.get(yaml_key)
@@ -116,7 +116,7 @@ def create_all_models_from_yaml(
 ### TERRAFRAME SPECIFIC UTILS ###
 #################################
 def get_all_variables_from_module(
-    module_path: Path, variables_file_name: str = "variables.tf"
+        module_path: Path, variables_file_name: str = "variables.tf"
 ) -> List[str]:
     """Given a module path, extract variable names from its variables file
 
@@ -134,3 +134,68 @@ def get_all_variables_from_module(
         ]
 
     return variables
+
+
+def create_child_module_var_models(module_path: str) -> Tuple["ChildModuleVarModel", ...]:
+    """
+    Avails of .get_all_variables_from_module() to retrieve all variables names from a terraform module, and then
+    creates all ChildModuleVarModel objects for each.
+
+    Args:
+        module_path: a string representing the system path to the terraform Module.
+
+    Returns: a tuple containing all the created ChildModuleVarModel objects.
+
+    """
+    # importing here to avoid circular imports
+    from terraframe.models import ChildModuleVarModel
+
+    return tuple(
+        [
+            ChildModuleVarModel.create(dict_args={"name": var})
+            for var in get_all_variables_from_module(
+            Path(module_path).absolute()
+        )
+        ]
+    )
+
+
+def create_remote_state_input_models(remote_state_inputs: List[Dict[str, str]]) -> Tuple["RemoteStateInputModel", ...]:
+    """
+    Creates RemoteStateInputModel objects represented by each element of 'remote_state_inputs'.
+
+    Args:
+        remote_state_inputs: a list of dictionaries as follows:
+            {
+                remote_state: str
+                var: str
+                output: str
+            }
+
+    Returns: a tuple containing all created RemoteStateInputModel objects.
+
+    """
+    # importing here to avoid circular imports
+    from terraframe.models import ChildModuleVarModel
+    from terraframe.models import ChildModuleOutputModel
+    from terraframe.models import RemoteStatateInputModel
+    from terraframe.models import RemoteStateModel
+
+    return tuple(
+        [
+            RemoteStatateInputModel.create(
+                {
+                    "var": ChildModuleVarModel.get({"name": rs_input["var"]}),
+                    "output": ChildModuleOutputModel.create(
+                        {
+                            "name": rs_input["output"],
+                            "remote_state": RemoteStateModel.get(
+                                {"name": rs_input["remote_state"]}
+                            ),
+                        }
+                    ),
+                }
+            )
+            for rs_input in remote_state_inputs
+        ]
+    )

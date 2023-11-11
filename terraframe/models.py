@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 from jinja2.exceptions import TemplateNotFound
 
 from terraframe.custom_collections import TerraframeSortedSet
-from terraframe.utils import get_all_variables_from_module, convert_nested_dict_to_hashabledict
+from terraframe.utils import get_all_variables_from_module, convert_nested_dict_to_hashabledict, create_child_module_var_models, create_remote_state_input_models
 from terraframe.store import TFModelsGlobalStore, get_shared_data_store
 from terraframe.custom_collections import HashableDict
 from sortedcontainers import SortedSet
@@ -211,34 +211,8 @@ class ChildModuleModel(RenderableModel):
     # noinspection PyTypeChecker
     @classmethod
     def create(cls, dict_args: Dict[str, Any], *args, **kwargs) -> "ChildModuleModel":
-        # TODO: for better readability, abstract this code into functions in utils
-        _child_module_vars = tuple(
-            [
-                ChildModuleVarModel.create(dict_args={"name": var})
-                for var in get_all_variables_from_module(
-                    Path(dict_args["source"]).absolute()
-                )
-            ]
-        )
-
-        _remote_states_inputs = tuple(
-            [
-                RemoteStatateInputModel.create(
-                    {
-                        "var": ChildModuleVarModel.get({"name": rs_input["var"]}),
-                        "output": ChildModuleOutputModel.create(
-                            {
-                                "name": rs_input["output"],
-                                "remote_state": RemoteStateModel.get(
-                                    {"name": rs_input["remote_state"]}
-                                ),
-                            }
-                        ),
-                    }
-                )
-                for rs_input in dict_args["remote_state_inputs"]
-            ]
-        )
+        _child_module_vars = create_child_module_var_models(dict_args["source"])
+        _remote_states_inputs = create_remote_state_input_models(dict_args["remote_state_inputs"])
 
         dict_args.update(
             {
