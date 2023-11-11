@@ -57,7 +57,8 @@ class Terraframe:
         TODO: include better logic explanation
 
         Args:
-            yaml_dict: a dict taken from yaml config. This could be the full dict, as represented by the yaml file, or a subset of it.
+            yaml_dict: a dict taken from yaml config. This could be the full dict, as represented by the yaml file,
+            or a subset of it.
             key_to_model_mapping: a dictionary that maps yaml keys to TerraframeModel classes.
         """
         for yaml_key in yaml_dict:
