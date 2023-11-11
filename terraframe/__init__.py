@@ -1,4 +1,4 @@
-from typing import Dict, Any, Type, Optional, Iterable, List, Set
+from typing import Dict, Any, Type, Optional, List
 
 import yaml
 from pathlib import Path
@@ -11,6 +11,7 @@ from terraframe.utils import (
     create_all_models_from_yaml,
     get_yaml_key_name_to_models_mapping,
     get_all_matching_files_for_path,
+    get_all_variables_from_module
 )
 from terraframe.constants import DEPLOYMENT_TEMPLATES_KEY
 
@@ -51,7 +52,7 @@ class Terraframe:
         Given a dictionary and a mapping of yaml keys to TerraframeModel classes, evaluates
         if any given key in the dictionary represents a TerraframeModel. If it does, then
         invokes the corresponding model class factory passing the values of that key as arguments
-        for instanting object(s) of such model.
+        for instantiating object(s) of such model.
 
         TODO: include better logic explanation
 
@@ -66,10 +67,10 @@ class Terraframe:
                     for dict_element in yaml_dict[yaml_key]:
                         create_all_models_from_yaml(dict_element, key_to_model_mapping)
 
-            model_cls.factory_for_yaml_data(yaml_dict[yaml_key])
+                model_cls.factory_for_yaml_data(yaml_dict[yaml_key])
 
     @staticmethod
-    def _create_maintf_file(
+    def create_maintf_file(
         deployment: DeploymentModel,
         deployment_path: Path,
         main_file_name: Optional[str] = "main.tf",
@@ -86,14 +87,14 @@ class Terraframe:
             main.write(deployment.get_rendered_str())
 
     @staticmethod
-    def _create_variables_file(
+    def create_variables_file(
         deployment: DeploymentModel,
         deployment_path: Path,
         variable_file_name: Optional[str] = "variables.tf",
     ) -> None:
         """
         Creates the 'variables' file inside a deployment folder. For that, the code looks at each ChildModuleVarModel
-        of each ChildModuleModeel of the deployment instance.
+        of each ChildModuleModel of the deployment instance.
 
         Args:
             deployment: the DeploymentModel instance.
@@ -110,59 +111,44 @@ class Terraframe:
                     )
 
     @staticmethod
-    def get_terraform_variables_from_module(
-        module_path: Path, variables_file_name: str = "variables.tf"
-    ) -> List[str]:
-        """Given a module path, extract variable names from its variables file
+    def get_vars_for_deployment(deployment: DeploymentModel) -> List[str]:
+        """
+        Retrieves names of all vars associated with 'deployment' and appends the deployment's
+        prefix to each.
 
         Args:
-            module_path: the path to the module folder.
-            variables_file_name: the name of the file holding ONLY variable definitions inside the module.
+            deployment: the DeploymentModel object to retrieve var names from.
 
-        Returns:
-            A list of strings in which each element is the var name for the root module
+        Returns: a list containing the names of each var associated with each ChildModule
+        of 'deployment' object.
+
         """
-        with open(f"{module_path}/{variables_file_name}", "r") as vars_tf_file:
-            lines = vars_tf_file.readlines()
-            variables = [
-                line.split('"')[1].strip()
-                for line in lines
-                if line.startswith("variable")
-            ]
+        deployment_vars = []
 
-        return variables
+        for child_module in deployment.child_modules:
+            for var in child_module.child_module_vars:
+                deployment_vars.append(f"{deployment.prefix}{var.name}")
 
-    def _create_empty_yml_vars_file(
-        self, file_name: str, variables_file_names: Iterable[str] = ("variables.tf",)
-    ) -> None:
-        """Creates a YAML file with 'file_name' under 'project_path' directory.
+        return deployment_vars
+
+    def create_empty_yml_vars_file(self, all_vars: Dict[str, List[str]], file_name: str) -> None:
+        """
+        Creates a YAML file with 'file_name' under 'project_path' directory.
         This file will contain all variables read from files with a name in 'variables_file_name'
         found under project_path structure. All variables will have null value assigned.
 
         Args:
-            file_name: the name of the .yml file to be created
-            variables_file_names: An iterable of strings representing the possible variable
-            file names that will be scanned for variables.
+            all_vars: a dict in which each key is a deployment name, and it's associated value is a list of Terraform
+            variable names associated with child modules for that deployment.
+            file_name: the name for the file that will be created.
         """
-        module_folders = [
-            folder for folder in self.project_path.iterdir() if folder.is_dir()
-        ]
+        _all_vars = {}
 
-        dict_structure = {}
-
-        for module in module_folders:
-            var_files = get_all_matching_files_for_path(module, variables_file_names)
-            var_names = []
-
-            for var_file in var_files:
-                var_names += self.get_terraform_variables_from_module(
-                    module, var_file.name
-                )
-
-            dict_structure[module.name] = {var: None for var in var_names}
+        for k, variables in all_vars.items():
+            _all_vars[k] = {var: None for var in variables}
 
         with open(f"{self.project_path}/{file_name}", "w") as yaml_var_file:
-            yaml_var_file.write(yaml.dump(dict_structure, indent=4))
+            yaml_var_file.write(yaml.dump(_all_vars, indent=4))
 
     def process_deployments(self):
         """
@@ -174,14 +160,14 @@ class Terraframe:
                 - terraform.tfvars (empty ofr the moment)
             - creating the project-level YAML file with all required vars for the project
         """
+        all_vars = {}
         for deployment in self.ds[DeploymentModel]:
             # creates a folder for the deployment
             deployment_path = self.project_path / Path(deployment.name)
             deployment_path.mkdir(exist_ok=True)
 
-            self._create_maintf_file(deployment, deployment_path)
-            self._create_variables_file(deployment, deployment_path)
+            self.create_maintf_file(deployment, deployment_path)
+            self.create_variables_file(deployment, deployment_path)
+            all_vars[deployment.name] = self.get_vars_for_deployment(deployment)
         else:
-            self._create_empty_yml_vars_file(
-                f"{self.project_path.name}_deployment_vars.yaml"
-            )
+            self.create_empty_yml_vars_file(all_vars=all_vars, file_name=f"{self.project_path.name}_deployment_vars.yaml")
