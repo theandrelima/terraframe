@@ -4,7 +4,7 @@ import yaml
 import sys
 import inspect
 from pathlib import Path
-from custom_collections import HashableDict
+from terraframe.custom_collections import HashableDict
 
 
 def get_all_matching_files_for_path(

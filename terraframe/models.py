@@ -9,9 +9,9 @@ from jinja2 import Environment, FileSystemLoader, Template
 from jinja2.exceptions import TemplateNotFound
 
 from terraframe.custom_collections import TerraframeSortedSet
-from utils import get_all_variables_from_module, convert_nested_dict_to_hashabledict
-from store import TFModelsGlobalStore, get_shared_data_store
-from custom_collections import HashableDict
+from terraframe.utils import get_all_variables_from_module, convert_nested_dict_to_hashabledict
+from terraframe.store import TFModelsGlobalStore, get_shared_data_store
+from terraframe.custom_collections import HashableDict
 from sortedcontainers import SortedSet
 
 #############################

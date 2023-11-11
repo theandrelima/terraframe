@@ -3,7 +3,7 @@ from typing import Dict, Any, Type, Optional, List
 import yaml
 from pathlib import Path
 
-from store import TFModelsGlobalStore, get_shared_data_store
+from terraframe.store import TFModelsGlobalStore, get_shared_data_store
 from terraframe.models import TerraFrameBaseModel, DeploymentModel, RemoteStateModel
 from terraframe.utils import (
     yaml_to_dict,

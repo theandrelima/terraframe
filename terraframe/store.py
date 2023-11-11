@@ -2,7 +2,7 @@ from typing import Any, Optional, Dict, Type, TYPE_CHECKING
 
 from functools import cache
 from collections import defaultdict
-from custom_collections import TerraframeSortedSet
+from terraframe.custom_collections import TerraframeSortedSet
 
 if TYPE_CHECKING:
     from models import TerraFrameBaseModel
