@@ -9,10 +9,8 @@ packages = [{include = "terraframe"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-pydantic = "^2.4.2"
-pyyaml = "^6.0.1"
-jinja2 = "^3.1.2"
-sortedcontainers = "^2.4.0"
+click = "^8.1.7"
+pydantic-wrangler = {git = "https://github.com/theandrelima/pydantic-wrangler.git", rev = "0.1.0_dev"}
 
 
 [tool.poetry.group.dev.dependencies]

@@ -1,20 +1,15 @@
 from typing import Dict, Any, Type, Optional, List
 
+import os
 import yaml
+import json
 from pathlib import Path
 
-from terraframe.store import TFModelsGlobalStore, get_shared_data_store
-from terraframe.models import TerraFrameBaseModel, DeploymentModel, RemoteStateModel
-from terraframe.utils import (
-    yaml_to_dict,
-    expand_deployment_templates,
-    create_all_models_from_yaml,
-    get_yaml_key_name_to_models_mapping,
-    get_all_matching_files_for_path,
-    get_all_variables_from_module,
-)
-from terraframe.constants import DEPLOYMENT_TEMPLATES_KEY
+from pydantic_wrangler import SHARED_DATA_STORE as DATA_STORE
+from pydantic_wrangler.utils import get_directive_to_model_mapping, load_file_to_dict, create_all_models_from_dict
 
+from terraframe.models import DeploymentModel
+from terraframe.utils import expand_deployment_templates
 
 class Terraframe:
     """
@@ -23,52 +18,28 @@ class Terraframe:
     """
 
     def __init__(
-        self, project_path_str: str, terraframe_yaml_file_name: str = "terraframe.yaml"
+        self, project_folder_path_str: str, terraframe_yaml_file_name: str = "terraframe.yaml"
     ):
-        self.ds = get_shared_data_store().records
-        self.project_path = Path(project_path_str)
-        self.terraframe_file = self.project_path / terraframe_yaml_file_name
-        self.loaded_dict = self.get_loaded_dict()
-        self.keys_to_models_mapping = get_yaml_key_name_to_models_mapping()
-        self.create_all_models_from_yaml(self.loaded_dict, self.keys_to_models_mapping)
+        self._data_store = DATA_STORE
+        self.project_folder_path = Path(project_folder_path_str)
+        
+        # we need to set this env var because some .create methods
+        # from Terraframe models will call utils functions that need to know
+        # the project folder path. TODO: probably better to move this
+        # to an app-wide config.
+        os.environ["PROJECT_FOLDER_PATH"] = str(self.project_folder_path)  
+        
+        self.terraframe_file_path = self.project_folder_path / terraframe_yaml_file_name
+        
+        #TODO maybe this should become a config/environment variable.
+        # self.model_modules = ["terraframe.models"]
+        self.create_all_models_from_file()
 
-    def get_loaded_dict(self) -> Dict[str, Any]:
-        """
-        Loads and expands the YAML file in a python dictionary.
 
-        Returns:
-            The python dictionary representation of the loaded YAML.
-        """
-        dictionary = yaml_to_dict(yaml_file_path=self.terraframe_file)
-        expand_deployment_templates(dictionary)
+    @property
+    def records(self):
+        return self._data_store.records
 
-        return dictionary
-
-    @staticmethod
-    def create_all_models_from_yaml(
-        yaml_dict: dict, key_to_model_mapping: Dict[str, Type[TerraFrameBaseModel]]
-    ) -> None:
-        """
-        Given a dictionary and a mapping of yaml keys to TerraframeModel classes, evaluates
-        if any given key in the dictionary represents a TerraframeModel. If it does, then
-        invokes the corresponding model class factory passing the values of that key as arguments
-        for instantiating object(s) of such model.
-
-        TODO: include better logic explanation
-
-        Args:
-            yaml_dict: a dict taken from yaml config. This could be the full dict, as represented by the yaml file,
-            or a subset of it.
-            key_to_model_mapping: a dictionary that maps yaml keys to TerraframeModel classes.
-        """
-        for yaml_key in yaml_dict:
-            model_cls = key_to_model_mapping.get(yaml_key)
-            if model_cls:
-                if isinstance(yaml_dict[yaml_key], list):
-                    for dict_element in yaml_dict[yaml_key]:
-                        create_all_models_from_yaml(dict_element, key_to_model_mapping)
-
-                model_cls.factory_for_yaml_data(yaml_dict[yaml_key])
 
     @staticmethod
     def create_maintf_file(
@@ -131,6 +102,20 @@ class Terraframe:
                 deployment_vars.append(f"{deployment.prefix}{var.name}")
 
         return deployment_vars
+    
+    def create_all_models_from_file(self) -> None:
+        """pydantic_wrangler.utils.create_all_models_from_file() wouldn't satisfy Terraframe's needs,
+        as here we need to do some pre-processing before creating the models. This method
+        will be responsible for creating all TerraframeModel objects from the YAML file
+        pointed by 'file_path'.
+
+        Args:
+            modules_to_inspect (Optional[List], optional): _description_. Defaults to [].
+        """
+        loaded_data = load_file_to_dict(self.terraframe_file_path)
+        expand_deployment_templates(loaded_dict=loaded_data)
+        key_to_model_mapping = get_directive_to_model_mapping()
+        create_all_models_from_dict(loaded_dict=loaded_data, key_to_model_mapping=key_to_model_mapping)
 
     def create_empty_yml_vars_file(
         self, all_vars: Dict[str, List[str]], file_name: str
@@ -150,7 +135,7 @@ class Terraframe:
         for k, variables in all_vars.items():
             _all_vars[k] = {var: None for var in variables}
 
-        with open(f"{self.project_path}/{file_name}", "w") as yaml_var_file:
+        with open(f"{self.project_folder_path}/{file_name}", "w") as yaml_var_file:
             yaml_var_file.write(yaml.dump(_all_vars, indent=4))
 
     def process_deployments(self):
@@ -164,9 +149,9 @@ class Terraframe:
             - creating the project-level YAML file with all required vars for the project
         """
         all_vars = {}
-        for deployment in self.ds[DeploymentModel]:
+        for deployment in self.records[DeploymentModel]:
             # creates a folder for the deployment
-            deployment_path = self.project_path / Path(deployment.name)
+            deployment_path = self.project_folder_path / Path(deployment.name)
             deployment_path.mkdir(exist_ok=True)
 
             self.create_maintf_file(deployment, deployment_path)
@@ -175,5 +160,5 @@ class Terraframe:
         else:
             self.create_empty_yml_vars_file(
                 all_vars=all_vars,
-                file_name=f"{self.project_path.name}_deployment_vars.yaml",
+                file_name=f"{self.project_folder_path.name}_deployment_vars.yaml",
             )

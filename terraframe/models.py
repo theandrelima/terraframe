@@ -1,208 +1,81 @@
 from typing import Optional, List, Dict, Any, Tuple, Union
 
-import re
-from pathlib import Path
-from functools import total_ordering
-
-from pydantic import BaseModel, ConfigDict
-from jinja2 import Environment, FileSystemLoader, Template
-from jinja2.exceptions import TemplateNotFound
-
-from terraframe.custom_collections import TerraframeSortedSet
-from terraframe.utils import get_all_variables_from_module, convert_nested_dict_to_hashabledict, create_child_module_var_models, create_remote_state_input_models
-from terraframe.store import TFModelsGlobalStore, get_shared_data_store
-from terraframe.custom_collections import HashableDict
 from sortedcontainers import SortedSet
 
-#############################
-### Base Model ###
-#############################
+from pydantic_wrangler import PydanticWranglerBaseModel
+from pydantic_wrangler import PydanticWranglerRenderableModel
+from pydantic_wrangler import HashableDict, HashableDictType
+
+from terraframe.utils import create_child_module_var_models, create_remote_state_input_models
 
 
-@total_ordering
-class TerraFrameBaseModel(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    _yaml_directive: str = None
-    _data_store: TFModelsGlobalStore = get_shared_data_store()
-    _key: Tuple = tuple(
-        ["name"]
-    )  # even though this class doesn't have a 'name' attr, most (if not all) child classes will.
-    _err_on_duplicate: bool = False
-    # _dependencies: Tuple = tuple()
-
-    def __hash__(self):
-        return hash((type(self),) + tuple(self.__dict__.values()))
-
-    def __lt__(self, other):
-        return self.key <= other.key
-
-    def __eq__(self, other):
-        return str(self) == str(other)
-
-    @property
-    def yaml_directive(self) -> str:
-        return self._yaml_directive
-
-    # @property
-    # def data_store(self) -> TFModelsGlobalStore:
-    #     return self._data_store
-
-    @property
-    def key(self) -> Tuple:
-        # this is probably a little wrong: we are not return the actual cls._key attribute
-        # but rather the objects (values) associated with attribute names listed in cls._key
-        return tuple([getattr(self, attr) for attr in self._key])
-
-    @classmethod
-    def factory_for_yaml_data(
-        cls, yaml_data: Union[Dict[str, Any], List[Dict[str, Any]]]
-    ) -> None:
-        if not isinstance(yaml_data, dict) and not isinstance(yaml_data, list):
-            raise Exception(
-                f"Data passed to {cls.__name__} must be of type 'dict' or 'list', but was {type(yaml_data)}"
-            )
-
-        if isinstance(yaml_data, list):
-            for _dict in yaml_data:
-                cls.create(dict_args=_dict)
-            return
-
-        cls.create(dict_args=yaml_data)
-
-    @classmethod
-    def ds(cls) -> TFModelsGlobalStore:
-        # because _data_store is implicitly a 'pydantic.Fields.ModelPrivateAttr'
-        # we have to use .get_default() method here.
-        return cls._data_store.get_default()
-
-    # @classmethod
-    # def get_model_dependencies(cls):
-    #     return cls._dependencies.get_default()
-
-    @classmethod
-    def create(
-        cls, dict_args: Dict[Any, Any], *args, **kwargs
-    ) -> "TerraFrameBaseModel":
-        if cls == TerraFrameBaseModel:
-            raise Exception("Cannot instantiate TerraFrameBaseModel directly")
-
-        convert_nested_dict_to_hashabledict(dict_args)
-        new_obj_model = cls.model_validate(dict_args, strict=True, *args, **kwargs)
-        new_obj_model.ds().save(new_obj_model)
-        return new_obj_model
-
-    @classmethod
-    def filter(cls, search_params: Dict[Any, Any]) -> TerraframeSortedSet:
-        return cls.ds().filter(cls, search_params)
-
-    @classmethod
-    def get(cls, search_params: Dict[Any, Any]) -> "TerraFrameBaseModel":
-        return cls.ds().get(cls, search_params)
-
-    @classmethod
-    def get_all(cls) -> TerraframeSortedSet:
-        return cls.ds().get_all(cls)
-
-
-#############################
-### NON-Renderable Models ###
-#############################
-
-
-class ChildModuleOutputModel(TerraFrameBaseModel):
-    """Stores data of a Child Module's output"""
+class ChildModuleOutputModel(PydanticWranglerBaseModel):
+    """Stores data of a Child Module's output. An instance of this model 
+    is used as the `output` attribute of a `RemoteStatateInputModel`.
+    
+    This model does not have a _directive attribute because it is not meant
+    to be created directly from a YAML file. It is created as part of the
+    `ChildModuleModel.create` method.
+    """
 
     name: str
     remote_state: "RemoteStateModel"
 
 
-#########################
-### Renderable Models ###
-#########################
 
 # TODO: make this a config/setting
 TEMPLATES_DIR = "terraframe/templates"
 
 
-class RenderableModel(TerraFrameBaseModel):
-    # noinspection PyTypeChecker
-    @classmethod
-    def create(cls, dict_args: Dict[Any, Any], *args, **kwargs) -> "RenderableModel":
-        cls._set_template(**dict_args)
-        return super().create(dict_args, *args, **kwargs)
 
-    @classmethod
-    def _set_template(cls, **kwargs):
-        try:
-            getattr(cls, "_template_name")
-        except AttributeError:
-            informed_template_name = kwargs.get("template_name")
+class ChildModuleVarModel(PydanticWranglerRenderableModel):
+    """Stores data of a Child Module's variable. An instance of this model
+    is used as the `var` attribute of a `RemoteStatateInputModel`, as well
+    as one of the elements in the `child_module_vars` attribute of a 
+    `ChildModuleModel`.
+    
+    This model does not have a _directive attribute because it is not meant
+    to be created directly from a YAML file. It is created as part of the 
+    `ChildModuleModel.create` method.
 
-            if informed_template_name:
-                cls._template_name = informed_template_name
-
-            else:
-                splitted_cls_name = re.findall("[A-Z][^A-Z]*", cls.__name__)
-
-                if "Model" in splitted_cls_name:
-                    splitted_cls_name.remove("Model")
-
-                cls._template_name = "_".join(splitted_cls_name).lower()
-
-    @property
-    def template_name(self):
-        return self._template_name
-
-    def get_rendered_str(self, extra_vars_dict: Optional[Dict[str, Any]] = None) -> str:
-        if extra_vars_dict:
-            _dict_to_render = dict(self)
-            _dict_to_render.update(extra_vars_dict)
-            return self._get_jinja_template().render(_dict_to_render)
-
-        return self._get_jinja_template().render(dict(self))
-
-    def _get_jinja_template(self) -> Template:
-        # TODO: this needs to evolve to allow custom templates
-        # the order should be: look first on user informed custom templates directory
-        # if nothing is found, look at terraframe's package.
-        env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
-        try:
-            return env.get_template(f"{self.template_name}.j2")
-        except TemplateNotFound as err:
-            # TODO: custom exceptions
-            raise err
-
-
-class ChildModuleVarModel(RenderableModel):
-    """Stores data of a Child Module's variable"""
+    """
 
     name: str
+
+    # TODO: currently not adding type and description, 
+    # but set here for future development
     type: Optional[str] = None
     description: Optional[str] = None
 
     _template_name: str = "variables"
 
 
-class RemoteStatateInputModel(RenderableModel):
+class RemoteStatateInputModel(PydanticWranglerRenderableModel):
     """Identifies a variable that should take it's input from a specific output
-    accessible via a `terraform_remote_state` resource"""
+    accessible via a `terraform_remote_state` resource
+    
+    This model does not have a _directive attribute because it is not meant
+    to be created directly from a YAML file. It is created as part of the 
+    `ChildModuleModel.create` method.
+    """
 
     _key: Tuple = ("var", "output")
     var: ChildModuleVarModel
     output: ChildModuleOutputModel
 
 
-class RemoteStateModel(RenderableModel):
-    _yaml_directive: str = "remote_states"
+class RemoteStateModel(PydanticWranglerRenderableModel):
+    """Stores data of a terraform_remote_state resource"""
+
+    _directive: str = "remote_states"
 
     name: str
     backend: str
-    config: HashableDict
+    config: HashableDictType
 
 
-class ChildModuleModel(RenderableModel):
-    _yaml_directive: str = "child_modules"
+class ChildModuleModel(PydanticWranglerRenderableModel):
+    _directive: str = "child_modules"
     name: str
     source: str
     child_module_vars: Tuple[ChildModuleVarModel, ...]
@@ -224,9 +97,9 @@ class ChildModuleModel(RenderableModel):
         return super().create(dict_args=dict_args, *args, **kwargs)
 
 
-class DeploymentModel(RenderableModel):
+class DeploymentModel(PydanticWranglerRenderableModel):
     _key: Tuple = ("index", "name")
-    _yaml_directive: str = "deployments"
+    _directive: str = "deployments"
     _err_on_duplicate: bool = True
     # _dependencies: Tuple = ("remote_states", "child_modules")
 
@@ -243,16 +116,16 @@ class DeploymentModel(RenderableModel):
     #     terraform_remote_state resource;
     #   - the second holds the name of an output that should be taken
     #     from the tfstate file pointed by that resource.
-    remote_state_inputs_dict: HashableDict = HashableDict()
+    remote_state_inputs_dict: HashableDictType = HashableDict()
 
     @classmethod
-    def factory_for_yaml_data(cls, yaml_data: List[Dict[str, Any]]) -> None:
+    def create_from_loaded_data(cls, data: List[Dict[str, Any]]) -> None:
         """
         For the case of DeploymentModel, we absolutely wait for a list of dicts with
         each containing data about one deployment
         """
         index = 0
-        for deployment in yaml_data:
+        for deployment in data:
             deployment.update({"index": index})
             cls.create(dict_args=deployment)
             index += 1
